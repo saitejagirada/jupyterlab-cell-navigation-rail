@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="4" failures="0" errors="0" time="3.277">
+  <testsuite name="NotebookNavigationRail" errors="0" failures="0" skipped="0" timestamp="2026-11-18T11:46:22" time="2.709" tests="4">
+    <testcase classname="NotebookNavigationRail should render one horizontal line marker per cell" name="NotebookNavigationRail should render one horizontal line marker per cell" time="0.107">
+    </testcase>
+    <testcase classname="NotebookNavigationRail should update aria-current and active class when active cell changes" name="NotebookNavigationRail should update aria-current and active class when active cell changes" time="0.032">
+    </testcase>
+    <testcase classname="NotebookNavigationRail should highlight error outputs and show them in hover preview" name="NotebookNavigationRail should highlight error outputs and show them in hover preview" time="0.032">
+    </testcase>
+    <testcase classname="NotebookNavigationRail should jump to the clicked cell" name="NotebookNavigationRail should jump to the clicked cell" time="0.029">
+    </testcase>
+  </testsuite>
+</testsuites>

@@ -1,0 +1,208 @@
+/* -----------------------------------------------------------------------------
+| Cell Navigation Rail (Uniform Horizontal Bar Indicators)
+|---------------------------------------------------------------------------- */
+
+.jp-Notebook.jp-mod-navigationRail {
+  position: relative;
+}
+
+.jp-Notebook.jp-mod-navigationRail .jp-WindowedPanel-viewport {
+  padding-left: calc(var(--jp-notebook-padding) + 18px);
+}
+
+.jp-Notebook-navigationRail {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 4px;
+  width: 18px;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  box-sizing: border-box;
+}
+
+.jp-Notebook-navigationRail-track {
+  position: relative;
+  pointer-events: auto;
+  width: 100%;
+  max-height: calc(100% - 32px);
+  box-sizing: border-box;
+  overflow: visible;
+  background: transparent;
+  border: 0;
+}
+
+/* Uniform horizontal bar marker for each notebook cell. */
+.jp-Notebook-navigationRail-line {
+  position: absolute;
+  left: 0;
+  right: 0;
+  margin: 0 auto;
+  transform: translateY(-50%);
+  width: 18px;
+  height: var(--jp-nav-rail-hit-height, 10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 0;
+  cursor: pointer;
+  outline: none;
+}
+
+.jp-Notebook-navigationRail-line::after {
+  content: '';
+  display: block;
+  width: 14px;
+  height: 2px;
+  border-radius: 0;
+  background-color: var(--jp-border-color1);
+  opacity: 0.75;
+  transition:
+    opacity 0.12s ease,
+    background-color 0.12s ease;
+}
+
+.jp-Notebook-navigationRail-line:hover {
+  z-index: 1;
+}
+
+.jp-Notebook-navigationRail-line:hover::after {
+  opacity: 1;
+  background-color: var(--jp-ui-font-color2);
+}
+
+/* Active cell bar */
+.jp-Notebook-navigationRail-line.jp-mod-active::after,
+.jp-Notebook-navigationRail-line.jp-mod-active:hover::after {
+  opacity: 1;
+  background-color: var(--jp-brand-color1);
+}
+
+/* Running cell bar */
+.jp-Notebook-navigationRail-line.jp-mod-running::after,
+.jp-Notebook-navigationRail-line.jp-mod-running:hover::after {
+  background-color: var(--jp-warn-color1);
+  opacity: 1;
+  animation: jp-navigation-rail-pulse 1.2s infinite ease-in-out alternate;
+}
+
+@keyframes jp-navigation-rail-pulse {
+  0% {
+    opacity: 0.4;
+  }
+
+  100% {
+    opacity: 1;
+  }
+}
+
+/* Error cell bar */
+.jp-Notebook-navigationRail-line.jp-mod-error::after,
+.jp-Notebook-navigationRail-line.jp-mod-error:hover::after {
+  opacity: 1;
+  background-color: var(--jp-error-color1);
+}
+
+.jp-Notebook-navigationRail-line.jp-mod-error.jp-mod-active::after,
+.jp-Notebook-navigationRail-line.jp-mod-error.jp-mod-active:hover::after {
+  opacity: 1;
+  background: linear-gradient(
+    90deg,
+    var(--jp-brand-color1) 0 4px,
+    var(--jp-error-color1) 4px 100%
+  );
+}
+
+/* Tooltip - Native Jupyter popover and cell editor typography */
+.jp-Notebook-navigationRail-tooltip {
+  position: fixed;
+  z-index: 10000;
+  pointer-events: none;
+  min-width: 180px;
+  max-width: 360px;
+  padding: 6px;
+  border-radius: var(--jp-border-radius);
+  background: var(--jp-layout-color1);
+  color: var(--jp-ui-font-color1);
+  font-family: var(--jp-ui-font-family);
+  font-size: var(--jp-ui-font-size1);
+  box-shadow: var(--jp-elevation-z2);
+  border: var(--jp-border-width) solid var(--jp-border-color1);
+  box-sizing: border-box;
+}
+
+.jp-Notebook-navigationRail-tooltip-header {
+  font-family: var(--jp-ui-font-family);
+  font-size: var(--jp-ui-font-size0);
+  color: var(--jp-ui-font-color2);
+  margin-bottom: 4px;
+  line-height: 1.2;
+}
+
+.jp-Notebook-navigationRail-tooltip-code {
+  margin: 0;
+  padding: var(--jp-code-padding);
+  border-radius: 0;
+  background: var(--jp-cell-editor-background);
+  border: var(--jp-border-width) solid var(--jp-cell-editor-border-color);
+  color: var(--jp-content-font-color1);
+  font-family: var(--jp-code-font-family);
+  font-size: var(--jp-code-font-size);
+  line-height: var(--jp-code-line-height);
+  white-space: pre;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jp-Notebook-navigationRail-tooltip-markdown {
+  font-family: var(--jp-content-font-family);
+  font-size: var(--jp-content-font-size1);
+  color: var(--jp-content-font-color1);
+  line-height: 1.4;
+}
+
+.jp-Notebook-navigationRail-tooltip-markdown-heading {
+  font-weight: 600;
+  color: var(--jp-content-font-color0);
+  margin-bottom: 2px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jp-Notebook-navigationRail-tooltip-markdown-body {
+  white-space: pre-wrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.jp-Notebook-navigationRail-tooltip-empty {
+  padding: var(--jp-code-padding);
+  background: var(--jp-cell-editor-background);
+  border: var(--jp-border-width) solid var(--jp-cell-editor-border-color);
+  color: var(--jp-ui-font-color2);
+  font-family: var(--jp-code-font-family);
+  font-size: var(--jp-code-font-size);
+  line-height: var(--jp-code-line-height);
+}
+
+.jp-Notebook-navigationRail-tooltip-error {
+  margin-top: 4px;
+  padding: var(--jp-code-padding);
+  background: var(--jp-rendermime-error-background);
+  color: var(--jp-content-font-color1);
+  font-family: var(--jp-code-font-family);
+  font-size: var(--jp-code-font-size);
+  line-height: var(--jp-code-line-height);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.jp-Notebook-navigationRail-tooltip-error-name {
+  color: var(--jp-error-color1);
+}

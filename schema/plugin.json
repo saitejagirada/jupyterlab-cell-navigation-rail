@@ -1,0 +1,14 @@
+{
+  "title": "Cell Navigation Rail",
+  "description": "Settings for the Notebook Cell Navigation Rail extension.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "showCellNavigationRail": {
+      "title": "Show cell navigation rail",
+      "description": "Whether to show the cell navigation rail across notebooks. The rail marks active, running, and errored cells.",
+      "type": "boolean",
+      "default": false
+    }
+  }
+}

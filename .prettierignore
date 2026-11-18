@@ -1,0 +1,6 @@
+package-lock.json
+yarn.lock
+lib/
+dist/
+jupyterlab_cell_navigation_rail/labextension/
+docs/
