@@ -29,23 +29,23 @@ Navigating long notebooks to revisit a cell or spot failed runs usually means sc
 
 ### Light Theme — View Menu & Error Preview
 
-![View menu toggle](docs/screenshots/view-menu-toggle.png)
+![View menu toggle](https://raw.githubusercontent.com/saitejagirada/jupyterlab-cell-navigation-rail/main/docs/screenshots/view-menu-toggle.png)
 
-![Light theme rail and error preview](docs/screenshots/light-error-preview.png)
+![Light theme rail and error preview](https://raw.githubusercontent.com/saitejagirada/jupyterlab-cell-navigation-rail/main/docs/screenshots/light-error-preview.png)
 
 ### Dark Theme & Native Token Adaptation
 
-![Dark theme rail and error preview](docs/screenshots/dark-error-preview.png)
+![Dark theme rail and error preview](https://raw.githubusercontent.com/saitejagirada/jupyterlab-cell-navigation-rail/main/docs/screenshots/dark-error-preview.png)
 
 ### Comparison with Built-in Minimap
 
 Cell Navigation Rail (compact fixed-height bars + hover preview on the left) alongside JupyterLab's scrollable code Minimap (on the right):
 
-![Navigation rail vs built-in minimap](docs/screenshots/minimap-comparison.png)
+![Navigation rail vs built-in minimap](https://raw.githubusercontent.com/saitejagirada/jupyterlab-cell-navigation-rail/main/docs/screenshots/minimap-comparison.png)
 
 ### Jupyter Notebook 7
 
-![Jupyter Notebook 7 navigation rail](docs/screenshots/notebook7-rail.png)
+![Jupyter Notebook 7 navigation rail](https://raw.githubusercontent.com/saitejagirada/jupyterlab-cell-navigation-rail/main/docs/screenshots/notebook7-rail.png)
 
 ## Requirements
 
