@@ -7,14 +7,14 @@
 }
 
 .jp-Notebook.jp-mod-navigationRail .jp-WindowedPanel-viewport {
-  padding-left: calc(var(--jp-notebook-padding) + 20px);
+  padding-left: calc(var(--jp-notebook-padding) + 30px);
 }
 
 .jp-Notebook-navigationRail {
   position: absolute;
   top: 0;
   bottom: 0;
-  left: 4px;
+  left: 14px;
   width: 20px;
   z-index: 10;
   display: flex;
@@ -22,6 +22,14 @@
   justify-content: center;
   pointer-events: none;
   box-sizing: border-box;
+}
+
+/* In Notebook 7 centered mode, keep the rail aligned inside the notebook page
+   card rather than stranded against the outer browser window edge. */
+body[data-notebook='notebooks']
+  .jp-NotebookPanel:not(.jp-mod-fullwidth)
+  .jp-Notebook-navigationRail {
+  left: max(14px, (100% - var(--jp-notebook-max-width, 1200px)) * 0.5 + 14px);
 }
 
 .jp-Notebook-navigationRail-track {
