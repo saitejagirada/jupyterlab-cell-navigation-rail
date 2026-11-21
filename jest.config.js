@@ -8,7 +8,13 @@ const esModules = [
   '@marijn',
   '@microsoft',
   'color',
+  'dom-serializer',
+  'domelementtype',
+  'domhandler',
+  'domutils',
+  'entities',
   'exenv-es6',
+  'htmlparser2',
   'lib0',
   'marked',
   'nanoid',
@@ -29,6 +35,9 @@ module.exports = {
     '!src/**/.ipynb_checkpoints/*'
   ],
   coverageReporters: ['lcov', 'text'],
+  modulePathIgnorePatterns: [
+    '<rootDir>/jupyterlab_cell_navigation_rail/labextension'
+  ],
   testRegex: 'src/.*/.*.spec.ts[x]?$',
   transformIgnorePatterns: [`/node_modules/(?!${esModules}).+`]
 };

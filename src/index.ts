@@ -15,24 +15,39 @@ import {
 import { ISettingRegistry } from '@jupyterlab/settingregistry';
 import type { TranslationBundle } from '@jupyterlab/translation';
 import { ITranslator, nullTranslator } from '@jupyterlab/translation';
-import type { Message } from '@lumino/messaging';
+import { type Message, MessageLoop } from '@lumino/messaging';
 import { Widget } from '@lumino/widgets';
 
 const PLUGIN_ID = 'jupyterlab-cell-navigation-rail:plugin';
 const COMMAND_ID = 'cell-navigation-rail:toggle';
-const NAVIGATION_RAIL_CLASS = 'jp-Notebook-navigationRail';
-const TRACK_CLASS = 'jp-Notebook-navigationRail-track';
-const LINE_CLASS = 'jp-Notebook-navigationRail-line';
-const TOOLTIP_CLASS = 'jp-Notebook-navigationRail-tooltip';
-const ACTIVE_LINE_CLASS = 'jp-mod-active';
-const ERROR_LINE_CLASS = 'jp-mod-error';
-const RUNNING_LINE_CLASS = 'jp-mod-running';
+const RAIL_CLASS = 'jp-Notebook-navigationRail';
+const TRACK_CLASS = `${RAIL_CLASS}-track`;
+const LINE_CLASS = `${RAIL_CLASS}-line`;
+const TIP_CLASS = `${RAIL_CLASS}-tooltip`;
+const ACTIVE_CLASS = 'jp-mod-active';
+const ERROR_CLASS = 'jp-mod-error';
+const RUNNING_CLASS = 'jp-mod-running';
+
 const LINE_SPACING = 16;
 const MAX_TRACK_HEIGHT = 360;
 const MIN_HIT_HEIGHT = 4;
 const MAX_HIT_HEIGHT = 10;
-const ANSI_ESCAPE_REGEX = new RegExp(
-  `${String.fromCharCode(0x1b)}\\[[0-9;]*m`,
+const PREVIEW_LINES = 4;
+const MAX_PREVIEW_SCAN_CHARS = 4000;
+const MAX_LINE_CHARS = 120;
+const MAX_ERROR_NAME_CHARS = 80;
+const MAX_ERROR_VALUE_CHARS = 240;
+
+const ESC = String.fromCharCode(0x1b);
+const BEL = String.fromCharCode(0x07);
+const OSC_REGEX = new RegExp(
+  `${ESC}\\][^${BEL}${ESC}]*(?:${BEL}|${ESC}\\\\)`,
+  'g'
+);
+const CSI_REGEX = new RegExp(`${ESC}\\[[0-9;?]*[ -/]*[@-~]`, 'g');
+const ESC_SEQ_REGEX = new RegExp(`${ESC}[@-Z\\\\-_]`, 'g');
+const CONTROL_CHAR_REGEX = new RegExp(
+  `[${String.fromCharCode(0x00)}-${String.fromCharCode(0x08)}${String.fromCharCode(0x0b)}${String.fromCharCode(0x0c)}${String.fromCharCode(0x0e)}-${String.fromCharCode(0x1f)}${String.fromCharCode(0x7f)}]`,
   'g'
 );
 
@@ -42,6 +57,72 @@ interface ICellErrorInfo {
   evalue?: string;
 }
 
+interface ISourcePreview {
+  lines: string[];
+  extraLines: number;
+  capped: boolean;
+}
+
+function el<K extends keyof HTMLElementTagNameMap>(
+  tag: K,
+  className: string,
+  text?: string
+): HTMLElementTagNameMap[K] {
+  const node = document.createElement(tag);
+  node.className = className;
+  if (text !== undefined) {
+    node.textContent = text;
+  }
+  return node;
+}
+
+function sanitizeText(str: string, maxLength: number): string {
+  const cleaned = str
+    .replace(OSC_REGEX, '')
+    .replace(CSI_REGEX, '')
+    .replace(ESC_SEQ_REGEX, '')
+    .replace(CONTROL_CHAR_REGEX, '')
+    .trim();
+  return cleaned.length > maxLength
+    ? `${cleaned.slice(0, maxLength)}…`
+    : cleaned;
+}
+
+function extractPreview(raw: string): ISourcePreview {
+  const capped = raw.length > MAX_PREVIEW_SCAN_CHARS;
+  const slice = (capped ? raw.slice(0, MAX_PREVIEW_SCAN_CHARS) : raw).replace(
+    /^(?:[ \t]*\r?\n)+|\s+$/g,
+    ''
+  );
+  if (!slice) {
+    return { lines: [], extraLines: 0, capped: false };
+  }
+
+  const lines: string[] = [];
+  let extraLines = 0;
+  let start = 0;
+
+  while (start <= slice.length) {
+    const nl = slice.indexOf('\n', start);
+    const end = nl === -1 ? slice.length : nl;
+    if (lines.length < PREVIEW_LINES) {
+      let line = slice.slice(start, end).replace(/\r$/, '');
+      if (line.length > MAX_LINE_CHARS) {
+        line = `${line.slice(0, MAX_LINE_CHARS)}…`;
+      }
+      lines.push(line);
+    } else {
+      extraLines += 1;
+    }
+    if (nl === -1) {
+      break;
+    }
+    start = nl + 1;
+  }
+
+  return { lines, extraLines, capped };
+}
+
 /**
  * A vertical cell navigation rail with active, running, and error indicators.
  */
@@ -49,14 +130,15 @@ export class NotebookNavigationRail extends Widget {
   readonly notebook: Notebook;
   private _trans: TranslationBundle;
   private _track: HTMLElement;
-  private _tooltip: HTMLElement;
+  private _tooltip: HTMLElement | null = null;
   private _cellListeners: Map<string, () => void> = new Map();
   private _hoveredCellId: string | null = null;
   private _connectedModel: Notebook['model'] = null;
+  private _onDismissTooltip = () => this._hideTooltip();
 
   constructor(notebook: Notebook, translator?: ITranslator) {
     super();
-    this.addClass(NAVIGATION_RAIL_CLASS);
+    this.addClass(RAIL_CLASS);
     this.notebook = notebook;
     this._trans = (translator ?? nullTranslator).load('jupyterlab');
     this.node.setAttribute('role', 'navigation');
@@ -65,18 +147,17 @@ export class NotebookNavigationRail extends Widget {
       this._trans.__('Cell navigation rail')
     );
 
-    this._track = document.createElement('div');
-    this._track.className = TRACK_CLASS;
+    this._track = el('div', TRACK_CLASS);
     this.node.appendChild(this._track);
-
-    this._tooltip = document.createElement('div');
-    this._tooltip.className = TOOLTIP_CLASS;
-    this._tooltip.setAttribute('role', 'tooltip');
-    this._tooltip.style.display = 'none';
-    document.body.appendChild(this._tooltip);
 
     this.notebook.activeCellChanged.connect(this._onActiveCellChanged, this);
     this.notebook.modelChanged.connect(this._onModelChanged, this);
+    window.addEventListener('blur', this._onDismissTooltip);
+    this.notebook.outerNode?.addEventListener(
+      'scroll',
+      this._onDismissTooltip,
+      { passive: true }
+    );
     this._connectModelCells();
     this._updateLines();
   }
@@ -86,11 +167,17 @@ export class NotebookNavigationRail extends Widget {
       return;
     }
     this._clearCellListeners();
+    window.removeEventListener('blur', this._onDismissTooltip);
+    this.notebook.outerNode?.removeEventListener(
+      'scroll',
+      this._onDismissTooltip
+    );
     this.notebook.activeCellChanged.disconnect(this._onActiveCellChanged, this);
     this.notebook.modelChanged.disconnect(this._onModelChanged, this);
-    this._connectedModel?.cells.changed.disconnect(this._onCellsChanged, this);
+    this._connectedModel?.cells.changed.disconnect(this._updateLines, this);
     this._connectedModel = null;
-    this._tooltip.remove();
+    this._tooltip?.remove();
+    this._tooltip = null;
     super.dispose();
   }
 
@@ -118,32 +205,30 @@ export class NotebookNavigationRail extends Widget {
 
   private _connectModelCells(): void {
     this._connectedModel = this.notebook.model;
-    this._connectedModel?.cells.changed.connect(this._onCellsChanged, this);
+    this._connectedModel?.cells.changed.connect(this._updateLines, this);
   }
 
   private _onModelChanged(): void {
-    this._connectedModel?.cells.changed.disconnect(this._onCellsChanged, this);
+    this._connectedModel?.cells.changed.disconnect(this._updateLines, this);
     this._connectedModel = null;
     this._clearCellListeners();
     this._connectModelCells();
     this._updateLines();
   }
 
-  private _onCellsChanged(): void {
-    this._updateLines();
-  }
-
   private _onActiveCellChanged(): void {
     const activeIndex = this.notebook.activeCellIndex;
-    Array.from(this._track.children).forEach((line, index) => {
-      const isActive = index === activeIndex;
-      line.classList.toggle(ACTIVE_LINE_CLASS, isActive);
+    const children = this._track.children;
+    for (let i = 0; i < children.length; i++) {
+      const line = children[i];
+      const isActive = i === activeIndex;
+      line.classList.toggle(ACTIVE_CLASS, isActive);
       if (isActive) {
         line.setAttribute('aria-current', 'true');
       } else {
         line.removeAttribute('aria-current');
       }
-    });
+    }
   }
 
   private _clearCellListeners(): void {
@@ -153,17 +238,18 @@ export class NotebookNavigationRail extends Widget {
 
   private _updateLines(): void {
     this._clearCellListeners();
-    this._track.replaceChildren();
 
-    if (!this.notebook.model) {
+    const model = this.notebook.model;
+    if (!model) {
+      this._track.replaceChildren();
       this._track.style.height = '0';
       this._hideTooltip();
       return;
     }
 
-    const cells = Array.from(this.notebook.model.cells);
-    const activeIndex = this.notebook.activeCellIndex;
+    const cells = model.cells;
     const total = cells.length;
+    const activeIndex = this.notebook.activeCellIndex;
     const trackHeight = Math.min(total * LINE_SPACING, MAX_TRACK_HEIGHT);
     this._track.style.height = `${trackHeight}px`;
 
@@ -178,29 +264,43 @@ export class NotebookNavigationRail extends Widget {
       );
     }
 
-    if (
-      this._hoveredCellId &&
-      !cells.some(cell => cell.id === this._hoveredCellId)
-    ) {
-      this._hideTooltip();
-    }
+    let hoveredStillExists = false;
+    const fragment = document.createDocumentFragment();
 
     for (let i = 0; i < total; i++) {
-      const cell = cells[i];
+      const cell = cells.get(i);
+      if (this._hoveredCellId && cell.id === this._hoveredCellId) {
+        hoveredStillExists = true;
+      }
       const line = this._createLine(cell, i, total);
+      line.style.top = `${((i + 0.5) / total) * 100}%`;
       if (i === activeIndex) {
-        line.classList.add(ACTIVE_LINE_CLASS);
+        line.classList.add(ACTIVE_CLASS);
         line.setAttribute('aria-current', 'true');
       }
-      this._track.appendChild(line);
+      fragment.appendChild(line);
       this._attachCellListeners(cell, line, i, total);
     }
 
-    if (total > 0) {
-      Array.from(this._track.children).forEach((child, index) => {
-        (child as HTMLElement).style.top = `${((index + 0.5) / total) * 100}%`;
-      });
+    this._track.replaceChildren(fragment);
+    if (this._hoveredCellId && !hoveredStillExists) {
+      this._hideTooltip();
     }
+  }
+
+  private _formatAriaLabel(
+    index: number,
+    total: number,
+    errorInfo: ICellErrorInfo
+  ): string {
+    return errorInfo.hasError
+      ? this._trans.__(
+          'Error in cell %1 of %2: %3',
+          index + 1,
+          total,
+          errorInfo.ename || this._trans.__('Error')
+        )
+      : this._trans.__('Cell %1 of %2', index + 1, total);
   }
 
   private _createLine(
@@ -208,8 +308,7 @@ export class NotebookNavigationRail extends Widget {
     index: number,
     total: number
   ): HTMLElement {
-    const line = document.createElement('button');
-    line.className = LINE_CLASS;
+    const line = el('button', LINE_CLASS);
     line.type = 'button';
     line.setAttribute('tabindex', '-1');
     line.dataset.cellId = cell.id;
@@ -217,43 +316,27 @@ export class NotebookNavigationRail extends Widget {
     line.dataset.type = cell.type;
 
     const errorInfo = this._getCellError(cell);
-    if (errorInfo.hasError) {
-      line.classList.add(ERROR_LINE_CLASS);
-      line.setAttribute(
-        'aria-label',
-        this._trans.__(
-          'Error in cell %1 of %2: %3',
-          index + 1,
-          total,
-          errorInfo.ename ?? this._trans.__('Error')
-        )
-      );
-    } else {
-      line.setAttribute(
-        'aria-label',
-        this._trans.__('Cell %1 of %2', index + 1, total)
-      );
-    }
+    line.classList.toggle(ERROR_CLASS, errorInfo.hasError);
+    line.setAttribute(
+      'aria-label',
+      this._formatAriaLabel(index, total, errorInfo)
+    );
 
-    if (cell.type === 'code') {
-      const codeModel = cell as ICodeCellModel;
-      if (codeModel.executionState === 'running') {
-        line.classList.add(RUNNING_LINE_CLASS);
-      }
+    if (
+      cell.type === 'code' &&
+      (cell as ICodeCellModel).executionState === 'running'
+    ) {
+      line.classList.add(RUNNING_CLASS);
     }
 
     line.addEventListener('click', event => {
       event.stopPropagation();
       this._onLineClick(index);
     });
-
     line.addEventListener('mouseenter', () => {
       this._showTooltip(cell, index, line);
     });
-
-    line.addEventListener('mouseleave', () => {
-      this._hideTooltip();
-    });
+    line.addEventListener('mouseleave', this._onDismissTooltip);
 
     return line;
   }
@@ -265,85 +348,67 @@ export class NotebookNavigationRail extends Widget {
     total: number
   ): void {
     const disconnects: Array<() => void> = [];
+    const refreshHovered = () => {
+      if (this._hoveredCellId === cell.id) {
+        this._renderTooltipContent(cell, index);
+      }
+    };
 
     if (cell.type === 'code') {
       const codeModel = cell as ICodeCellModel;
-      const outputs = codeModel.outputs;
-
       const onOutputsChanged = () => {
         const errorInfo = this._getCellError(codeModel);
-        line.classList.toggle(ERROR_LINE_CLASS, errorInfo.hasError);
+        line.classList.toggle(ERROR_CLASS, errorInfo.hasError);
         line.setAttribute(
           'aria-label',
-          errorInfo.hasError
-            ? this._trans.__(
-                'Error in cell %1 of %2: %3',
-                index + 1,
-                total,
-                errorInfo.ename ?? this._trans.__('Error')
-              )
-            : this._trans.__('Cell %1 of %2', index + 1, total)
+          this._formatAriaLabel(index, total, errorInfo)
         );
-        if (this._hoveredCellId === cell.id) {
-          this._renderTooltipContent(cell, index);
-        }
+        refreshHovered();
       };
-
       const onStateChanged = (
         _: ICellModel,
         change: IChangedArgs<unknown, unknown>
       ) => {
         if (change.name === 'executionState') {
           line.classList.toggle(
-            RUNNING_LINE_CLASS,
+            RUNNING_CLASS,
             codeModel.executionState === 'running'
           );
         }
-        if (this._hoveredCellId === cell.id) {
-          this._renderTooltipContent(cell, index);
-        }
+        refreshHovered();
       };
 
+      const outputs = codeModel.outputs;
       if (outputs) {
         outputs.changed.connect(onOutputsChanged);
         disconnects.push(() => outputs.changed.disconnect(onOutputsChanged));
       }
-
       codeModel.stateChanged.connect(onStateChanged);
       disconnects.push(() => codeModel.stateChanged.disconnect(onStateChanged));
     }
 
-    const onSourceChanged = () => {
-      if (this._hoveredCellId === cell.id) {
-        this._renderTooltipContent(cell, index);
-      }
-    };
-    cell.sharedModel.changed.connect(onSourceChanged);
-    disconnects.push(() =>
-      cell.sharedModel.changed.disconnect(onSourceChanged)
-    );
-
-    this._cellListeners.set(cell.id, () => {
-      disconnects.forEach(fn => fn());
-    });
+    const sharedModel = cell.sharedModel;
+    sharedModel.changed.connect(refreshHovered);
+    disconnects.push(() => sharedModel.changed.disconnect(refreshHovered));
+    this._cellListeners.set(cell.id, () => disconnects.forEach(fn => fn()));
   }
 
   private _getCellError(cell: ICellModel): ICellErrorInfo {
     if (cell.type !== 'code') {
       return { hasError: false };
     }
-    const model = cell as ICodeCellModel;
-    if (!model.outputs) {
+    const outputs = (cell as ICodeCellModel).outputs;
+    if (!outputs) {
       return { hasError: false };
     }
-    for (let i = 0; i < model.outputs.length; i++) {
-      const output = model.outputs.get(i);
+    for (let i = 0; i < outputs.length; i++) {
+      const output = outputs.get(i);
       if (output.type === 'error') {
         const errorJson = output.toJSON() as nbformat.IError;
         return {
           hasError: true,
-          ename: errorJson.ename || 'Error',
-          evalue: errorJson.evalue || ''
+          ename: sanitizeText(errorJson.ename || 'Error', MAX_ERROR_NAME_CHARS),
+          evalue: sanitizeText(errorJson.evalue || '', MAX_ERROR_VALUE_CHARS)
         };
       }
     }
@@ -364,121 +429,176 @@ export class NotebookNavigationRail extends Widget {
     void NotebookActions.focusActiveCell(this.notebook);
   }
 
+  private _ensureTooltip(): HTMLElement {
+    if (!this._tooltip) {
+      const tip = el('div', TIP_CLASS);
+      tip.setAttribute('role', 'tooltip');
+      tip.style.display = 'none';
+      document.body.appendChild(tip);
+      this._tooltip = tip;
+    }
+    return this._tooltip;
+  }
+
   private _showTooltip(
     cell: ICellModel,
     index: number,
     lineElement: HTMLElement
   ): void {
     this._hoveredCellId = cell.id;
+    const tooltip = this._ensureTooltip();
     this._renderTooltipContent(cell, index);
 
     const rect = lineElement.getBoundingClientRect();
-    let tooltipX = rect.right + 10;
-    let tooltipY = Math.max(8, rect.top - 10);
+    let x = rect.right + 10;
+    let y = Math.max(8, rect.top - 14);
+    tooltip.style.display = 'block';
+    tooltip.style.left = `${x}px`;
+    tooltip.style.top = `${y}px`;
 
-    this._tooltip.style.display = 'block';
-    this._tooltip.style.left = `${tooltipX}px`;
-    this._tooltip.style.top = `${tooltipY}px`;
-
-    const tooltipRect = this._tooltip.getBoundingClientRect();
-    if (tooltipX + tooltipRect.width > window.innerWidth - 12) {
-      tooltipX = Math.max(12, window.innerWidth - tooltipRect.width - 12);
-      this._tooltip.style.left = `${tooltipX}px`;
+    const box = tooltip.getBoundingClientRect();
+    if (x + box.width > window.innerWidth - 12) {
+      x = Math.max(12, window.innerWidth - box.width - 12);
+      tooltip.style.left = `${x}px`;
     }
-    if (tooltipY + tooltipRect.height > window.innerHeight - 12) {
-      tooltipY = Math.max(8, window.innerHeight - tooltipRect.height - 12);
-      this._tooltip.style.top = `${tooltipY}px`;
+    if (y + box.height > window.innerHeight - 12) {
+      y = Math.max(8, window.innerHeight - box.height - 12);
+      tooltip.style.top = `${y}px`;
     }
   }
 
   private _renderTooltipContent(cell: ICellModel, index: number): void {
+    const tooltip = this._ensureTooltip();
     const errorInfo = this._getCellError(cell);
-    const source = (cell.sharedModel.getSource() || '').trim();
-    const lines = source ? source.split('\n') : [];
-    const totalCells = Math.max(
+    const codeModel = cell.type === 'code' ? (cell as ICodeCellModel) : null;
+    const isRunning = codeModel?.executionState === 'running';
+    const preview = extractPreview(cell.sharedModel.getSource() || '');
+    const total = Math.max(
       this.notebook.model?.cells.length ?? 0,
       this._track.children.length
     );
 
-    this._tooltip.replaceChildren();
+    tooltip.classList.toggle(
+      ACTIVE_CLASS,
+      index === this.notebook.activeCellIndex
+    );
+    tooltip.classList.toggle(RUNNING_CLASS, Boolean(isRunning));
+    tooltip.classList.toggle(ERROR_CLASS, errorInfo.hasError);
+    tooltip.replaceChildren();
 
-    const header = document.createElement('div');
-    header.className = 'jp-Notebook-navigationRail-tooltip-header';
-    header.textContent = this._trans.__('Cell %1 of %2', index + 1, totalCells);
-    this._tooltip.appendChild(header);
-
-    if (cell.type === 'markdown') {
-      if (lines.length > 0) {
-        const container = document.createElement('div');
-        container.className = 'jp-Notebook-navigationRail-tooltip-markdown';
-
-        const headingMatch = /^#{1,6}[ \t]+(\S.*)$/.exec(lines[0]);
-        if (headingMatch) {
-          const heading = document.createElement('div');
-          heading.className =
-            'jp-Notebook-navigationRail-tooltip-markdown-heading';
-          heading.textContent = headingMatch[1];
-          container.appendChild(heading);
-        }
-
-        const bodyLines = (headingMatch ? lines.slice(1, 4) : lines.slice(0, 4))
-          .map(line => line.trim())
-          .filter(Boolean);
-        if (bodyLines.length > 0) {
-          const body = document.createElement('div');
-          body.className = 'jp-Notebook-navigationRail-tooltip-markdown-body';
-          body.textContent =
-            bodyLines.join('\n') + (lines.length > 4 ? '\n...' : '');
-          container.appendChild(body);
-        }
-        this._tooltip.appendChild(container);
-      } else {
-        const empty = document.createElement('div');
-        empty.className = 'jp-Notebook-navigationRail-tooltip-empty';
-        empty.textContent = this._trans.__('Empty markdown cell');
-        this._tooltip.appendChild(empty);
-      }
-    } else if (lines.length > 0) {
-      const code = document.createElement('pre');
-      code.className = 'jp-Notebook-navigationRail-tooltip-code';
-      code.textContent =
-        lines.slice(0, 4).join('\n') + (lines.length > 4 ? '\n...' : '');
-      this._tooltip.appendChild(code);
+    const meta = el('div', `${TIP_CLASS}-meta`);
+    if (codeModel) {
+      const promptText = errorInfo.hasError
+        ? '[!]'
+        : isRunning
+          ? '[*]'
+          : codeModel.executionCount !== null
+            ? `[${codeModel.executionCount}]`
+            : '[ ]';
+      const kindText = errorInfo.hasError
+        ? this._trans.__('Error')
+        : isRunning
+          ? this._trans.__('Running')
+          : this._trans.__('Code');
+      meta.append(
+        el('span', `${TIP_CLASS}-prompt`, promptText),
+        el('span', `${TIP_CLASS}-kind`, kindText)
+      );
     } else {
-      const empty = document.createElement('div');
-      empty.className = 'jp-Notebook-navigationRail-tooltip-empty';
-      empty.textContent =
-        cell.type === 'raw'
-          ? this._trans.__('Empty raw cell')
-          : this._trans.__('Empty cell');
-      this._tooltip.appendChild(empty);
-    }
-
-    if (errorInfo.hasError) {
-      const errorEl = document.createElement('div');
-      errorEl.className = 'jp-Notebook-navigationRail-tooltip-error';
-
-      const nameEl = document.createElement('span');
-      nameEl.className = 'jp-Notebook-navigationRail-tooltip-error-name';
-      nameEl.textContent = errorInfo.ename || this._trans.__('Error');
-      errorEl.appendChild(nameEl);
-
-      errorEl.appendChild(
-        document.createTextNode(
-          `: ${this._stripAnsi(errorInfo.evalue || this._trans.__('Execution failed'))}`
+      meta.append(
+        el(
+          'span',
+          `${TIP_CLASS}-kind`,
+          cell.type === 'markdown'
+            ? this._trans.__('Markdown')
+            : this._trans.__('Raw')
         )
       );
-      this._tooltip.appendChild(errorEl);
+    }
+
+    const header = el('div', `${TIP_CLASS}-header`);
+    header.append(
+      meta,
+      el('span', `${TIP_CLASS}-index`, `${index + 1} / ${total}`)
+    );
+    tooltip.appendChild(header);
+
+    const body = el('div', `${TIP_CLASS}-body`);
+    if (cell.type === 'markdown') {
+      if (preview.lines.length > 0) {
+        const md = el('div', `${TIP_CLASS}-markdown`);
+        const headingMatch = /^#{1,6}[ \t]+(\S.*)$/.exec(preview.lines[0]);
+        if (headingMatch) {
+          md.appendChild(
+            el('div', `${TIP_CLASS}-markdown-heading`, headingMatch[1])
+          );
+        }
+        const prose = (headingMatch ? preview.lines.slice(1) : preview.lines)
+          .map(line => line.trim())
+          .filter(Boolean);
+        if (prose.length > 0) {
+          md.appendChild(
+            el('div', `${TIP_CLASS}-markdown-body`, prose.join('\n'))
+          );
+        }
+        body.appendChild(md);
+      } else {
+        body.appendChild(
+          el('div', `${TIP_CLASS}-empty`, this._trans.__('Empty markdown cell'))
+        );
+      }
+    } else if (preview.lines.length > 0) {
+      const code = el('div', `${TIP_CLASS}-code`);
+      for (const lineText of preview.lines) {
+        code.appendChild(el('div', `${TIP_CLASS}-line`, lineText || ' '));
+      }
+      body.appendChild(code);
+    } else {
+      body.appendChild(
+        el(
+          'div',
+          `${TIP_CLASS}-empty`,
+          cell.type === 'raw'
+            ? this._trans.__('Empty raw cell')
+            : this._trans.__('Empty cell')
+        )
+      );
+    }
+
+    if (preview.extraLines > 0 || preview.capped) {
+      const moreText =
+        preview.extraLines > 0
+          ? preview.capped
+            ? this._trans.__('+%1+ more lines', preview.extraLines)
+            : preview.extraLines === 1
+              ? this._trans.__('+1 more line')
+              : this._trans.__('+%1 more lines', preview.extraLines)
+          : this._trans.__('Truncated preview');
+      body.appendChild(el('div', `${TIP_CLASS}-more`, moreText));
+    }
+    tooltip.appendChild(body);
+
+    if (errorInfo.hasError) {
+      const errorEl = el('div', `${TIP_CLASS}-error`);
+      errorEl.append(
+        el(
+          'span',
+          `${TIP_CLASS}-error-name`,
+          errorInfo.ename || this._trans.__('Error')
+        ),
+        document.createTextNode(
+          `: ${errorInfo.evalue || this._trans.__('Execution failed')}`
+        )
+      );
+      tooltip.appendChild(errorEl);
     }
   }
 
   private _hideTooltip(): void {
     this._hoveredCellId = null;
-    this._tooltip.style.display = 'none';
-  }
-
-  private _stripAnsi(str: string): string {
-    return str.replace(ANSI_ESCAPE_REGEX, '');
+    if (this._tooltip) {
+      this._tooltip.style.display = 'none';
+    }
   }
 }
 
@@ -496,7 +616,6 @@ const plugin: JupyterFrontEndPlugin<void> = {
     translator: ITranslator | null
   ) => {
     const trans = (translator ?? nullTranslator).load('jupyterlab');
-
     let enabled = false;
     let settings: ISettingRegistry.ISettings | null = null;
     const rails = new Map<NotebookPanel, NotebookNavigationRail>();
@@ -525,19 +644,32 @@ const plugin: JupyterFrontEndPlugin<void> = {
       rails.set(panel, rail);
 
       const mount = () => {
-        if (!panel.isDisposed && !rail.isDisposed && !rail.isAttached) {
+        if (
+          !panel.isDisposed &&
+          !rail.isDisposed &&
+          !rail.isAttached &&
+          panel.content.node.isConnected
+        ) {
           Widget.attach(rail, panel.content.node);
         }
       };
 
+      const hook = (_handler: unknown, msg: Message): boolean => {
+        if (msg.type === 'after-attach') {
+          mount();
+        } else if (msg.type === 'before-detach' && rail.isAttached) {
+          Widget.detach(rail);
+        }
+        return true;
+      };
+
+      MessageLoop.installMessageHook(panel.content, hook);
       if (panel.content.isAttached) {
         mount();
-      } else {
-        void panel.context.ready.then(mount);
-        requestAnimationFrame(mount);
       }
 
       panel.disposed.connect(() => {
+        MessageLoop.removeMessageHook(panel.content, hook);
         if (rail.isAttached) {
           Widget.detach(rail);
         }
@@ -559,12 +691,7 @@ const plugin: JupyterFrontEndPlugin<void> = {
       caption: trans.__('Show or hide the cell navigation rail'),
       isEnabled: isNotebookActive,
       isToggled: () => enabled,
-      describedBy: {
-        args: {
-          type: 'object',
-          properties: {}
-        }
-      },
+      describedBy: { args: { type: 'object', properties: {} } },
       execute: async () => {
         if (!isNotebookActive()) {
           return;
@@ -590,12 +717,10 @@ const plugin: JupyterFrontEndPlugin<void> = {
         .load(PLUGIN_ID)
         .then(loaded => {
           settings = loaded;
-          const applySetting = () => {
-            const value = Boolean(
-              loaded.get('showCellNavigationRail').composite
+          const applySetting = () =>
+            syncVisibility(
+              Boolean(loaded.get('showCellNavigationRail').composite)
             );
-            syncVisibility(value);
-          };
           applySetting();
           loaded.changed.connect(applySetting);
         })

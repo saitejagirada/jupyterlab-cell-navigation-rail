@@ -1,5 +1,6 @@
 # jupyterlab-cell-navigation-rail
 
+[![PyPI](https://img.shields.io/pypi/v/jupyterlab-cell-navigation-rail.svg)](https://pypi.org/project/jupyterlab-cell-navigation-rail/)
 [![Build](https://github.com/saitejagirada/jupyterlab-cell-navigation-rail/actions/workflows/build.yml/badge.svg)](https://github.com/saitejagirada/jupyterlab-cell-navigation-rail/actions/workflows/build.yml)
 [![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/saitejagirada/jupyterlab-cell-navigation-rail/HEAD?urlpath=lab/tree/binder/demo.ipynb)
 
@@ -19,8 +20,8 @@ Navigating long notebooks to revisit a cell or spot failed runs usually means sc
 **Cell Navigation Rail** focuses on a minimal, fixed-height glanceable margin rail:
 
 - **Opt-in by default (`default: false`):** Disabled until enabled in the **View** menu or Settings.
-- **Uniform horizontal bars (`14px x 2px`):** Neutral for idle cells, brand blue for the active cell, pulsing warning accent while running, and red when a cell output contains an error.
-- **Hover preview tooltips:** Previews cell code, Markdown text, or error messages using native JupyterLab tokens (`--jp-cell-editor-*`, `--jp-content-font-*`, `--jp-rendermime-error-background`).
+- **Uniform horizontal bars (`12px x 2px`, expanding subtly on hover):** Neutral for idle cells, brand blue for the active cell, pulsing warning accent while running, and red when a cell output contains an error.
+- **Hover preview cards:** Shows cell prompt, type, position (`2 / 5`), truncated code/Markdown lines, remaining line count, and error tracebacks with a status-colored accent border using native `--jp-*` tokens.
 - **One-click jump:** Selecting any bar scrolls to and focuses that cell.
 - **Works in JupyterLab 4 and Jupyter Notebook 7.**
 
@@ -53,11 +54,13 @@ Cell Navigation Rail (compact fixed-height bars + hover preview on the left) alo
 
 ## Install
 
-Install directly from GitHub:
+Install from PyPI:
 
 ```bash
-pip install "git+https://github.com/saitejagirada/jupyterlab-cell-navigation-rail.git"
+pip install jupyterlab-cell-navigation-rail
 ```
+
+You can also search for `jupyterlab-cell-navigation-rail` in JupyterLab’s built-in **Extension Manager**.
 
 ## Usage
 

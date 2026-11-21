@@ -7,7 +7,7 @@
 }
 
 .jp-Notebook.jp-mod-navigationRail .jp-WindowedPanel-viewport {
-  padding-left: calc(var(--jp-notebook-padding) + 18px);
+  padding-left: calc(var(--jp-notebook-padding) + 20px);
 }
 
 .jp-Notebook-navigationRail {
@@ -15,7 +15,7 @@
   top: 0;
   bottom: 0;
   left: 4px;
-  width: 18px;
+  width: 20px;
   z-index: 10;
   display: flex;
   align-items: center;
@@ -31,8 +31,6 @@
   max-height: calc(100% - 32px);
   box-sizing: border-box;
   overflow: visible;
-  background: transparent;
-  border: 0;
 }
 
 /* Uniform horizontal bar marker for each notebook cell. */
@@ -42,29 +40,31 @@
   right: 0;
   margin: 0 auto;
   transform: translateY(-50%);
-  width: 18px;
+  width: 20px;
   height: var(--jp-nav-rail-hit-height, 10px);
   display: flex;
   align-items: center;
-  justify-content: center;
+  justify-content: flex-start;
+  padding: 0 2px;
   background: transparent;
   border: none;
-  padding: 0;
   cursor: pointer;
   outline: none;
+  box-sizing: border-box;
 }
 
 .jp-Notebook-navigationRail-line::after {
   content: '';
   display: block;
-  width: 14px;
+  width: 12px;
   height: 2px;
-  border-radius: 0;
-  background-color: var(--jp-border-color1);
-  opacity: 0.75;
+  border-radius: 1px;
+  background-color: var(--jp-ui-font-color3);
+  opacity: 0.45;
   transition:
-    opacity 0.12s ease,
-    background-color 0.12s ease;
+    width 0.14s ease,
+    opacity 0.14s ease,
+    background-color 0.14s ease;
 }
 
 .jp-Notebook-navigationRail-line:hover {
@@ -72,7 +72,8 @@
 }
 
 .jp-Notebook-navigationRail-line:hover::after {
-  opacity: 1;
+  width: 16px;
+  opacity: 0.95;
   background-color: var(--jp-ui-font-color2);
 }
 
@@ -86,14 +87,14 @@
 /* Running cell bar */
 .jp-Notebook-navigationRail-line.jp-mod-running::after,
 .jp-Notebook-navigationRail-line.jp-mod-running:hover::after {
-  background-color: var(--jp-warn-color1);
   opacity: 1;
+  background-color: var(--jp-warn-color1);
   animation: jp-navigation-rail-pulse 1.2s infinite ease-in-out alternate;
 }
 
 @keyframes jp-navigation-rail-pulse {
   0% {
-    opacity: 0.4;
+    opacity: 0.35;
   }
 
   100% {
@@ -118,42 +119,117 @@
   );
 }
 
-/* Tooltip - Native Jupyter popover and cell editor typography */
+/* Hover preview card */
 .jp-Notebook-navigationRail-tooltip {
   position: fixed;
   z-index: 10000;
   pointer-events: none;
-  min-width: 180px;
-  max-width: 360px;
-  padding: 6px;
-  border-radius: var(--jp-border-radius);
+  min-width: 210px;
+  max-width: 340px;
+  overflow: hidden;
+  border-radius: 6px;
   background: var(--jp-layout-color1);
   color: var(--jp-ui-font-color1);
   font-family: var(--jp-ui-font-family);
-  font-size: var(--jp-ui-font-size1);
-  box-shadow: var(--jp-elevation-z2);
-  border: var(--jp-border-width) solid var(--jp-border-color1);
+  font-size: var(--jp-ui-font-size0);
+  border: var(--jp-border-width) solid var(--jp-border-color2);
+  border-left: 3px solid var(--jp-border-color1);
+  box-shadow: var(--jp-elevation-z4);
   box-sizing: border-box;
+  animation: jp-navigation-rail-fade 0.1s ease-out;
+}
+
+.jp-Notebook-navigationRail-tooltip.jp-mod-active {
+  border-left-color: var(--jp-brand-color1);
+}
+
+.jp-Notebook-navigationRail-tooltip.jp-mod-running {
+  border-left-color: var(--jp-warn-color1);
+}
+
+.jp-Notebook-navigationRail-tooltip.jp-mod-error {
+  border-left-color: var(--jp-error-color1);
+}
+
+@keyframes jp-navigation-rail-fade {
+  from {
+    opacity: 0;
+    transform: translateX(-3px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
 }
 
 .jp-Notebook-navigationRail-tooltip-header {
-  font-family: var(--jp-ui-font-family);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 5px 10px;
+  border-bottom: var(--jp-border-width) solid var(--jp-border-color3);
+  background: var(--jp-layout-color1);
+  line-height: 1.25;
+}
+
+.jp-Notebook-navigationRail-tooltip-meta {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.jp-Notebook-navigationRail-tooltip-prompt {
+  font-family: var(--jp-code-font-family);
   font-size: var(--jp-ui-font-size0);
   color: var(--jp-ui-font-color2);
-  margin-bottom: 4px;
-  line-height: 1.2;
+}
+
+.jp-Notebook-navigationRail-tooltip-kind {
+  font-weight: 500;
+  color: var(--jp-ui-font-color1);
+}
+
+.jp-Notebook-navigationRail-tooltip.jp-mod-active
+  .jp-Notebook-navigationRail-tooltip-prompt {
+  color: var(--jp-brand-color1);
+}
+
+.jp-Notebook-navigationRail-tooltip.jp-mod-running
+  .jp-Notebook-navigationRail-tooltip-prompt,
+.jp-Notebook-navigationRail-tooltip.jp-mod-running
+  .jp-Notebook-navigationRail-tooltip-kind {
+  color: var(--jp-warn-color1);
+}
+
+.jp-Notebook-navigationRail-tooltip.jp-mod-error
+  .jp-Notebook-navigationRail-tooltip-prompt,
+.jp-Notebook-navigationRail-tooltip.jp-mod-error
+  .jp-Notebook-navigationRail-tooltip-kind {
+  color: var(--jp-error-color1);
+}
+
+.jp-Notebook-navigationRail-tooltip-index {
+  font-variant-numeric: tabular-nums;
+  color: var(--jp-ui-font-color2);
+  white-space: nowrap;
+}
+
+.jp-Notebook-navigationRail-tooltip-body {
+  padding: 6px 10px 7px;
+  background: var(--jp-cell-editor-background);
 }
 
 .jp-Notebook-navigationRail-tooltip-code {
-  margin: 0;
-  padding: var(--jp-code-padding);
-  border-radius: 0;
-  background: var(--jp-cell-editor-background);
-  border: var(--jp-border-width) solid var(--jp-cell-editor-border-color);
-  color: var(--jp-content-font-color1);
   font-family: var(--jp-code-font-family);
-  font-size: var(--jp-code-font-size);
-  line-height: var(--jp-code-line-height);
+  font-size: var(--jp-ui-font-size0);
+  line-height: 1.45;
+  color: var(--jp-ui-font-color1);
+}
+
+.jp-Notebook-navigationRail-tooltip-line {
   white-space: pre;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -161,12 +237,13 @@
 
 .jp-Notebook-navigationRail-tooltip-markdown {
   font-family: var(--jp-content-font-family);
-  font-size: var(--jp-content-font-size1);
-  color: var(--jp-content-font-color1);
-  line-height: 1.4;
+  font-size: var(--jp-ui-font-size0);
+  color: var(--jp-ui-font-color1);
+  line-height: 1.45;
 }
 
 .jp-Notebook-navigationRail-tooltip-markdown-heading {
+  font-size: var(--jp-ui-font-size1);
   font-weight: 600;
   color: var(--jp-content-font-color0);
   margin-bottom: 2px;
@@ -176,33 +253,37 @@
 }
 
 .jp-Notebook-navigationRail-tooltip-markdown-body {
+  color: var(--jp-ui-font-color2);
   white-space: pre-wrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
 
 .jp-Notebook-navigationRail-tooltip-empty {
-  padding: var(--jp-code-padding);
-  background: var(--jp-cell-editor-background);
-  border: var(--jp-border-width) solid var(--jp-cell-editor-border-color);
+  font-style: italic;
   color: var(--jp-ui-font-color2);
-  font-family: var(--jp-code-font-family);
-  font-size: var(--jp-code-font-size);
-  line-height: var(--jp-code-line-height);
+}
+
+.jp-Notebook-navigationRail-tooltip-more {
+  margin-top: 4px;
+  font-size: var(--jp-ui-font-size0);
+  color: var(--jp-ui-font-color2);
+  opacity: 0.85;
 }
 
 .jp-Notebook-navigationRail-tooltip-error {
-  margin-top: 4px;
-  padding: var(--jp-code-padding);
+  padding: 6px 10px;
+  border-top: var(--jp-border-width) solid var(--jp-border-color3);
   background: var(--jp-rendermime-error-background);
   color: var(--jp-content-font-color1);
   font-family: var(--jp-code-font-family);
-  font-size: var(--jp-code-font-size);
-  line-height: var(--jp-code-line-height);
+  font-size: var(--jp-ui-font-size0);
+  line-height: 1.4;
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .jp-Notebook-navigationRail-tooltip-error-name {
+  font-weight: 600;
   color: var(--jp-error-color1);
 }

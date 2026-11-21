@@ -1,6 +1,6 @@
 {
     "name": "jupyterlab-cell-navigation-rail",
-    "version": "0.1.0",
+    "version": "0.1.1",
     "description": "An opt-in compact left-margin cell navigation rail with active, running, and error indicators plus hover cell previews for JupyterLab and Jupyter Notebook 7.",
     "keywords": [
         "jupyter",
@@ -94,7 +94,7 @@
     },
     "resolutions": {
         "lib0": "0.2.111",
-        "webpack": "5.106.0"
+        "sanitize-html": ">=2.18.0"
     },
     "sideEffects": [
         "style/*.css",

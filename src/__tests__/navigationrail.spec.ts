@@ -102,17 +102,63 @@ describe('NotebookNavigationRail', () => {
       '.jp-Notebook-navigationRail-line'
     ) as NodeListOf<HTMLElement>;
     expect(lines[0].classList.contains('jp-mod-error')).toBe(true);
+    expect(
+      document.body.querySelector('.jp-Notebook-navigationRail-tooltip')
+    ).toBeNull();
 
     lines[0].dispatchEvent(new MouseEvent('mouseenter'));
     const tooltip = document.body.querySelector(
       '.jp-Notebook-navigationRail-tooltip'
     ) as HTMLElement;
     expect(tooltip.style.display).toBe('block');
+    expect(tooltip.classList.contains('jp-mod-error')).toBe(true);
+    expect(tooltip.textContent).toContain('[!]');
+    expect(tooltip.textContent).toContain('1 / 3');
     expect(tooltip.textContent).toContain(
       'ZeroDivisionError: division by zero'
     );
 
     rail.setHidden(true);
+    expect(tooltip.style.display).toBe('none');
+  });
+
+  it('should sanitize ANSI/control escapes, bound long previews, and dismiss on blur', () => {
+    const codeModel = notebook.model!.cells.get(2) as ICodeCellModel;
+    codeModel.sharedModel.setSource(
+      [
+        'def compute():',
+        '    x = 1',
+        '    y = 2',
+        '    z = 3',
+        '    return x + y + z',
+        '# extra line'
+      ].join('\n')
+    );
+    codeModel.outputs.fromJSON([
+      {
+        output_type: 'error',
+        ename: 'ValueError',
+        evalue:
+          '\x1b[31mbad\x1b[0m \x1b]8;;https://example.com\x07link\x1b\\ <img onerror=alert(1)>',
+        traceback: []
+      }
+    ]);
+
+    const lines = rail.node.querySelectorAll(
+      '.jp-Notebook-navigationRail-line'
+    ) as NodeListOf<HTMLElement>;
+    lines[2].dispatchEvent(new MouseEvent('mouseenter'));
+
+    const tooltip = document.body.querySelector(
+      '.jp-Notebook-navigationRail-tooltip'
+    ) as HTMLElement;
+    expect(tooltip.textContent).toContain('+2 more lines');
+    expect(tooltip.textContent).toContain(
+      'ValueError: bad link <img onerror=alert(1)>'
+    );
+    expect(tooltip.querySelector('img')).toBeNull();
+
+    window.dispatchEvent(new Event('blur'));
     expect(tooltip.style.display).toBe('none');
   });
 
@@ -122,6 +168,42 @@ describe('NotebookNavigationRail', () => {
     ) as NodeListOf<HTMLElement>;
     lines[2].click();
     expect(notebook.activeCellIndex).toBe(2);
+  });
+
+  it('should update cleanly when cells are replaced after disposal', () => {
+    const firstCell = notebook.model!.cells.get(0);
+    firstCell.dispose();
+    notebook.model!.fromJSON({
+      ...DEFAULT_CONTENT,
+      cells: [
+        {
+          cell_type: 'code',
+          execution_count: 1,
+          metadata: {},
+          outputs: [],
+          source: ['x = 1']
+        },
+        {
+          cell_type: 'code',
+          execution_count: 2,
+          metadata: {},
+          outputs: [],
+          source: ['y = 2']
+        },
+        {
+          cell_type: 'code',
+          execution_count: 3,
+          metadata: {},
+          outputs: [],
+          source: ['z = 3']
+        },
+        { cell_type: 'markdown', metadata: {}, source: ['# End'] }
+      ]
+    });
+    const lines = rail.node.querySelectorAll(
+      '.jp-Notebook-navigationRail-line'
+    );
+    expect(lines).toHaveLength(4);
   });
 });
 
