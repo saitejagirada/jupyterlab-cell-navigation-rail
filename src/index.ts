@@ -24,10 +24,14 @@ const RAIL_CLASS = 'jp-Notebook-navigationRail';
 const TRACK_CLASS = `${RAIL_CLASS}-track`;
 const LINE_CLASS = `${RAIL_CLASS}-line`;
 const TIP_CLASS = `${RAIL_CLASS}-tooltip`;
+const INSET_CLASS = 'jp-mod-navigationRail-inset';
 const ACTIVE_CLASS = 'jp-mod-active';
 const ERROR_CLASS = 'jp-mod-error';
 const RUNNING_CLASS = 'jp-mod-running';
 
+const MIN_EDGE_OFFSET = 12;
+const OUTER_GUTTER_GAP = 30;
+const MIN_OUTER_GUTTER = 40;
 const LINE_SPACING = 16;
 const MAX_TRACK_HEIGHT = 360;
 const MIN_HIT_HEIGHT = 4;
@@ -134,6 +138,7 @@ export class NotebookNavigationRail extends Widget {
   private _cellListeners: Map<string, () => void> = new Map();
   private _hoveredCellId: string | null = null;
   private _connectedModel: Notebook['model'] = null;
+  private _resizeObserver: ResizeObserver | null = null;
   private _onDismissTooltip = () => this._hideTooltip();
 
   constructor(notebook: Notebook, translator?: ITranslator) {
@@ -166,6 +171,8 @@ export class NotebookNavigationRail extends Widget {
     if (this.isDisposed) {
       return;
     }
+    this._stopResizeObserver();
+    this.notebook.removeClass(INSET_CLASS);
     this._clearCellListeners();
     window.removeEventListener('blur', this._onDismissTooltip);
     this.notebook.outerNode?.removeEventListener(
@@ -184,23 +191,84 @@ export class NotebookNavigationRail extends Widget {
   setHidden(hidden: boolean): void {
     if (hidden) {
       this._hideTooltip();
+      this.notebook.removeClass(INSET_CLASS);
     }
     super.setHidden(hidden);
+    if (!hidden) {
+      this._updateLayout();
+    }
   }
 
   protected onAfterAttach(msg: Message): void {
     super.onAfterAttach(msg);
+    this._startResizeObserver();
     this._updateLines();
+    this._updateLayout();
+  }
+
+  protected onAfterShow(msg: Message): void {
+    super.onAfterShow(msg);
+    this._updateLayout();
   }
 
   protected onBeforeHide(msg: Message): void {
     this._hideTooltip();
+    this.notebook.removeClass(INSET_CLASS);
     super.onBeforeHide(msg);
   }
 
   protected onBeforeDetach(msg: Message): void {
     this._hideTooltip();
+    this._stopResizeObserver();
+    this.notebook.removeClass(INSET_CLASS);
     super.onBeforeDetach(msg);
+  }
+
+  private _startResizeObserver(): void {
+    if (this._resizeObserver || typeof ResizeObserver === 'undefined') {
+      return;
+    }
+    this._resizeObserver = new ResizeObserver(() => this._updateLayout());
+    this._resizeObserver.observe(this.notebook.node);
+    const inner = this.notebook.node.querySelector<HTMLElement>(
+      '.jp-WindowedPanel-inner'
+    );
+    if (inner) {
+      this._resizeObserver.observe(inner);
+    }
+  }
+
+  private _stopResizeObserver(): void {
+    this._resizeObserver?.disconnect();
+    this._resizeObserver = null;
+  }
+
+  private _updateLayout(): void {
+    if (this.isDisposed || this.isHidden || !this.isAttached) {
+      this.notebook.removeClass(INSET_CLASS);
+      return;
+    }
+    const nbRect = this.notebook.node.getBoundingClientRect();
+    if (nbRect.width <= 0) {
+      return;
+    }
+    const inner = this.notebook.node.querySelector<HTMLElement>(
+      '.jp-WindowedPanel-inner'
+    );
+    const gutter = inner
+      ? Math.max(0, inner.getBoundingClientRect().left - nbRect.left)
+      : 0;
+
+    if (gutter >= MIN_OUTER_GUTTER) {
+      this.notebook.removeClass(INSET_CLASS);
+      this.node.style.left = `${Math.max(
+        MIN_EDGE_OFFSET,
+        Math.round(gutter - OUTER_GUTTER_GAP)
+      )}px`;
+    } else {
+      this.notebook.addClass(INSET_CLASS);
+      this.node.style.left = `${Math.round(gutter) + MIN_EDGE_OFFSET}px`;
+    }
   }
 
   private _connectModelCells(): void {

@@ -205,6 +205,32 @@ describe('NotebookNavigationRail', () => {
     );
     expect(lines).toHaveLength(4);
   });
+
+  it('should float in the outer gutter without shifting cells when room is available', () => {
+    const inner = notebook.node.querySelector<HTMLElement>(
+      '.jp-WindowedPanel-inner'
+    )!;
+    jest.spyOn(notebook.node, 'getBoundingClientRect').mockReturnValue({
+      left: 0,
+      width: 1440
+    } as DOMRect);
+    const innerRect = jest
+      .spyOn(inner, 'getBoundingClientRect')
+      .mockReturnValue({ left: 120, width: 1200 } as DOMRect);
+
+    rail.setHidden(false);
+    expect(notebook.hasClass('jp-mod-navigationRail-inset')).toBe(false);
+    expect(rail.node.style.left).toBe('90px');
+
+    innerRect.mockReturnValue({ left: 0, width: 1000 } as DOMRect);
+    rail.setHidden(true);
+    rail.setHidden(false);
+    expect(notebook.hasClass('jp-mod-navigationRail-inset')).toBe(true);
+    expect(rail.node.style.left).toBe('12px');
+
+    rail.setHidden(true);
+    expect(notebook.hasClass('jp-mod-navigationRail-inset')).toBe(false);
+  });
 });
 
 describe('cell-navigation-rail plugin', () => {
