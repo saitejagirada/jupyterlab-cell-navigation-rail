@@ -3,11 +3,11 @@ requires = ["hatchling>=1.5.0", "hatch-nodejs-version>=0.3.2", "jupyter-builder>
 build-backend = "hatchling.build"
 
 [project]
-name = "jupyterlab_cell_navigation_rail"
+name = "jupyterlab-cell-navigation-rail"
 readme = "README.md"
 license = "BSD-3-Clause"
 license-files = ["LICENSE"]
-requires-python = ">=3.11"
+requires-python = ">=3.10"
 classifiers = [
     "Framework :: Jupyter",
     "Framework :: Jupyter :: JupyterLab",
@@ -16,6 +16,7 @@ classifiers = [
     "Framework :: Jupyter :: JupyterLab :: Extensions :: Prebuilt",
     "Programming Language :: Python",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -38,6 +39,9 @@ fields = ["description", "authors", "urls", "keywords"]
 [tool.hatch.build.targets.sdist]
 artifacts = ["jupyterlab_cell_navigation_rail/labextension"]
 exclude = [".github", "binder", "docs/screenshots"]
+
+[tool.hatch.build.targets.wheel]
+packages = ["jupyterlab_cell_navigation_rail"]
 
 [tool.hatch.build.targets.wheel.shared-data]
 "jupyterlab_cell_navigation_rail/labextension" = "share/jupyter/labextensions/jupyterlab-cell-navigation-rail"

@@ -1,8 +1,11 @@
 # jupyterlab-cell-navigation-rail
 
 [![Build](https://github.com/saitejagirada/jupyterlab-cell-navigation-rail/actions/workflows/build.yml/badge.svg)](https://github.com/saitejagirada/jupyterlab-cell-navigation-rail/actions/workflows/build.yml)
+[![Binder](https://mybinder.org/badge_logo.svg)](https://mybinder.org/v2/gh/saitejagirada/jupyterlab-cell-navigation-rail/HEAD?urlpath=lab/tree/binder/demo.ipynb)
 
 An opt-in, compact left-margin **Cell Navigation Rail** for **JupyterLab 4** and **Jupyter Notebook 7**.
+
+Try it online with Binder in [JupyterLab](https://mybinder.org/v2/gh/saitejagirada/jupyterlab-cell-navigation-rail/HEAD?urlpath=lab/tree/binder/demo.ipynb) or [Jupyter Notebook 7](https://mybinder.org/v2/gh/saitejagirada/jupyterlab-cell-navigation-rail/HEAD?urlpath=notebooks/binder/demo.ipynb).
 
 Each cell in the notebook is represented by a uniform horizontal bar in a fixed-height rail on the left edge, inspired by margin bookmark indicators in ePub readers and compact overview rails. Hovering a bar previews the cell (code, Markdown, or error traceback) with native Jupyter typography, and clicking jumps straight to that cell.
 
@@ -45,6 +48,7 @@ Cell Navigation Rail (compact fixed-height bars + hover preview on the left) alo
 
 ## Requirements
 
+- Python >= 3.10
 - JupyterLab >= 4.0.0 (or Jupyter Notebook >= 7.0.0)
 
 ## Install
@@ -85,5 +89,5 @@ jlpm build
 ## Uninstall
 
 ```bash
-pip uninstall jupyterlab_cell_navigation_rail
+pip uninstall jupyterlab-cell-navigation-rail
 ```

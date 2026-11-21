@@ -1,11 +1,15 @@
 import type { ICodeCellModel } from '@jupyterlab/cells';
+import type { JupyterFrontEnd } from '@jupyterlab/application';
+import type { INotebookTracker, NotebookPanel } from '@jupyterlab/notebook';
 import { Notebook, NotebookModel, StaticNotebook } from '@jupyterlab/notebook';
 import {
   DEFAULT_CONTENT,
   NBTestUtils
 } from '@jupyterlab/notebook/lib/testutils';
+import { CommandRegistry } from '@lumino/commands';
+import { Signal } from '@lumino/signaling';
 import { Widget } from '@lumino/widgets';
-import { NotebookNavigationRail } from '../index';
+import plugin, { NotebookNavigationRail } from '../index';
 
 const notebookConfig: StaticNotebook.INotebookConfig = {
   ...StaticNotebook.defaultNotebookConfig,
@@ -118,5 +122,54 @@ describe('NotebookNavigationRail', () => {
     ) as NodeListOf<HTMLElement>;
     lines[2].click();
     expect(notebook.activeCellIndex).toBe(2);
+  });
+});
+
+describe('cell-navigation-rail plugin', () => {
+  it('should register the toggle command disabled by default and toggle the rail', async () => {
+    const notebook = createNotebook();
+    Widget.attach(notebook, document.body);
+
+    const disposed = new Signal<Record<string, unknown>, void>({});
+    const panel = {
+      content: notebook,
+      context: { ready: Promise.resolve() },
+      isDisposed: false,
+      disposed
+    } as unknown as NotebookPanel;
+
+    const widgetAdded = new Signal<INotebookTracker, NotebookPanel>(
+      {} as INotebookTracker
+    );
+    const tracker = {
+      currentWidget: panel,
+      forEach: (cb: (widget: NotebookPanel) => void) => cb(panel),
+      widgetAdded
+    } as unknown as INotebookTracker;
+
+    const commands = new CommandRegistry();
+    const app = {
+      name: 'JupyterLab',
+      commands,
+      shell: { currentWidget: panel }
+    } as unknown as JupyterFrontEnd;
+
+    plugin.activate(app, tracker, null, null, null);
+
+    expect(commands.hasCommand('cell-navigation-rail:toggle')).toBe(true);
+    expect(commands.isToggled('cell-navigation-rail:toggle')).toBe(false);
+    expect(notebook.hasClass('jp-mod-navigationRail')).toBe(false);
+
+    await commands.execute('cell-navigation-rail:toggle');
+    expect(commands.isToggled('cell-navigation-rail:toggle')).toBe(true);
+    expect(notebook.hasClass('jp-mod-navigationRail')).toBe(true);
+
+    await commands.execute('cell-navigation-rail:toggle');
+    expect(commands.isToggled('cell-navigation-rail:toggle')).toBe(false);
+    expect(notebook.hasClass('jp-mod-navigationRail')).toBe(false);
+
+    disposed.emit();
+    Widget.detach(notebook);
+    notebook.dispose();
   });
 });

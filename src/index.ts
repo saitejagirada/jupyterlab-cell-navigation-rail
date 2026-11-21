@@ -5,12 +5,11 @@ import type {
 import { ICommandPalette } from '@jupyterlab/apputils';
 import type { ICellModel, ICodeCellModel } from '@jupyterlab/cells';
 import type { IChangedArgs } from '@jupyterlab/coreutils';
-import { IMainMenu } from '@jupyterlab/mainmenu';
 import type * as nbformat from '@jupyterlab/nbformat';
 import {
   INotebookTracker,
-  Notebook,
   NotebookActions,
+  type Notebook,
   type NotebookPanel
 } from '@jupyterlab/notebook';
 import { ISettingRegistry } from '@jupyterlab/settingregistry';
@@ -20,7 +19,7 @@ import type { Message } from '@lumino/messaging';
 import { Widget } from '@lumino/widgets';
 
 const PLUGIN_ID = 'jupyterlab-cell-navigation-rail:plugin';
-const COMMAND_ID = 'notebook:toggle-cell-navigation-rail';
+const COMMAND_ID = 'cell-navigation-rail:toggle';
 const NAVIGATION_RAIL_CLASS = 'jp-Notebook-navigationRail';
 const TRACK_CLASS = 'jp-Notebook-navigationRail-track';
 const LINE_CLASS = 'jp-Notebook-navigationRail-line';
@@ -488,25 +487,15 @@ const plugin: JupyterFrontEndPlugin<void> = {
   description: 'Adds a cell navigation rail with a View menu toggle.',
   autoStart: true,
   requires: [INotebookTracker],
-  optional: [IMainMenu, ICommandPalette, ISettingRegistry, ITranslator],
+  optional: [ICommandPalette, ISettingRegistry, ITranslator],
   activate: (
     app: JupyterFrontEnd,
     tracker: INotebookTracker,
-    mainMenu: IMainMenu | null,
     palette: ICommandPalette | null,
     settingRegistry: ISettingRegistry | null,
     translator: ITranslator | null
   ) => {
     const trans = (translator ?? nullTranslator).load('jupyterlab');
-    const hasBuiltinRail = Boolean(
-      Object.getOwnPropertyDescriptor(
-        Notebook.prototype,
-        'showCellNavigationRail'
-      )
-    );
-    if (hasBuiltinRail || app.commands.hasCommand(COMMAND_ID)) {
-      return;
-    }
 
     let enabled = false;
     let settings: ISettingRegistry.ISettings | null = null;
@@ -588,13 +577,6 @@ const plugin: JupyterFrontEndPlugin<void> = {
         }
       }
     });
-
-    if (mainMenu) {
-      mainMenu.viewMenu.addItem({
-        command: COMMAND_ID,
-        rank: 12.1
-      });
-    }
 
     if (palette) {
       palette.addItem({

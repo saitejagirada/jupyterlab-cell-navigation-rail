@@ -74,7 +74,6 @@ jobs:
         run: |
           set -eux
           sudo rm -rf $(which node)
-          sudo rm -rf $(which node)
 
           pip install "jupyterlab>=4.0.0,<5" jupyterlab_cell_navigation_rail*.whl
           jupyter labextension list
